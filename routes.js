@@ -4,6 +4,7 @@ const usersRoutes = require("./routes/userRoute");
 const productsRoutes = require("./routes/productRoute");
 const ordersRoutes = require("./routes/orderRoute");
 const cartRoutes = require("./routes/cartRoute");
+const wishlistRoutes = require("./routes/wishlistRoute");
 const connectToMongoDB = require("./config");
 
 router.get("/api", async (req, res) => {
@@ -16,5 +17,6 @@ router.use("/api/users", usersRoutes);
 router.use("/api/products", productsRoutes);
 router.use("/api/orders", ordersRoutes);
 router.use("/api/cart", cartRoutes);
+router.use("/api/wishlist", wishlistRoutes);
 
 module.exports = router;

@@ -25,13 +25,6 @@ const userSchema = new mongoose.Schema({
   paymentDone: Boolean,
 });
 
-// Exclude password field from JSON responses
-userSchema.methods.toJSON = function () {
-  const userObject = this.toObject();
-  delete userObject.password;
-  return userObject;
-};
-
-const User = mongoose.model("User", userSchema, "users");
+const User = mongoose.model("User", userSchema);
 
 module.exports = User;

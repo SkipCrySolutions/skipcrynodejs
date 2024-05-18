@@ -19,12 +19,12 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/get/:customerId", async (req, res) => {
   try {
-    const id = req.params.id;
-    const user = await User.findById(id);
-    console.log("user => ", user);
-    res.json(user);
+    const id = req.params.customerId;
+    const user = await User.find({CustomerId: id});
+    console.log("get user => ", user);
+    res.json(user[0]);
   } catch (err) {
     console.error("Error fetching users:", err);
     res.status(500).send("Internal Server Error");

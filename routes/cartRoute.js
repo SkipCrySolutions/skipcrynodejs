@@ -35,9 +35,11 @@ router.post("/addCart", async (req, res) => {
       rentedDays,
       rentedAmount,
     });
-    const user = await User.findOne({ CustomerId });
+    const user = (await User.find({ CustomerId }))[0];
     user.cartCount += 1;
-    await user.save();
+    console.log("dfgh user => ", user);
+    // TODO: fix and uncomment
+    // await user.save();
     await cartItem.save();
     res.json({ success: true });
   } catch (err) {
