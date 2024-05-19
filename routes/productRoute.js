@@ -5,7 +5,7 @@ const router = express.Router();
 
 router.get("/", async (req, res) => {
   try {
-    const toys_list = await Product.find({ visible: true });
+    const toys_list = await Product.find();
     console.log("toys length", toys_list.length);
     res.json(toys_list);
   } catch (err) {
@@ -37,43 +37,12 @@ router.get("/updateAll", async (req, res) => {
       }
     );
     res.json({ success: true });
-  } catch (err) { }
+  } catch (err) {}
 });
 
 router.post("/add", async (req, res) => {
   try {
-    const {
-      Code,
-      Name,
-      Description,
-      MRP,
-      Age,
-      Brand,
-      Category,
-      Quantity,
-      Class,
-      rent30,
-      rent15,
-      bigSize,
-      visible,
-      Link,
-    } = req.body;
-    const product = new Product({
-      Code,
-      Name,
-      Description,
-      MRP,
-      Age,
-      Brand,
-      Category,
-      Quantity,
-      Class,
-      rent30,
-      rent15,
-      bigSize,
-      visible,
-      Link,
-    });
+    const product = new Product(req.body);
     await product.save();
     res.json({ success: true });
   } catch (err) {
@@ -87,7 +56,11 @@ router.put("/edit/:id", async (req, res) => {
     const id = req.params.id;
     console.log("edit => ", id, req.body);
     const updatedProduct = req.body;
-    await Product.findByIdAndUpdate(id, updatedProduct);
+    await Product.findByIdAndUpdate(id, updatedProduct, {
+      new: true,
+      upsert: true,
+      useFindAndModify: false,
+    });
     res.json({ success: true });
   } catch (err) {
     console.error("Error editing product:", err);
@@ -112,7 +85,7 @@ router.get("/byAge", async (req, res) => {
     let query = null;
     if (req.query && req.query.ageType === "preschool") {
       query = {
-        $or: [{ Age: "0+" }, { Age: "1+" }, { Age: "2+" }]
+        $or: [{ Age: "0+" }, { Age: "1+" }, { Age: "2+" }],
       };
     } else if (req.query && req.query.ageType === "playschool") {
       query = {
@@ -125,7 +98,7 @@ router.get("/byAge", async (req, res) => {
     }
     console.log("query => ", query);
     const toys_list = await Product.find(query);
-    console.log('toys_list => ', toys_list);
+    console.log("toys_list => ", toys_list);
     res.json(toys_list);
   } catch (err) {
     console.error("Error fetching products by age:", err);
@@ -149,9 +122,9 @@ router.get("/search", async (req, res) => {
   try {
     const { searchKey } = req.query;
     console.log("searchKey => ", searchKey);
-    const regex = new RegExp(searchKey, 'i');
+    const regex = new RegExp(searchKey, "i");
     const toys_list = await Product.find({
-      SearchKey: regex
+      SearchKey: regex,
     });
     console.log("search toys list => ", toys_list);
     res.json(toys_list);

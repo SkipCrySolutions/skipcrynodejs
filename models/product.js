@@ -27,6 +27,6 @@ const ProductsSchema = new mongoose.Schema({
   SearchKey: String,
 });
 
-const Product = mongoose.model("Product", ProductsSchema, "products");
+const Product = mongoose.model("Product", ProductsSchema);
 
 module.exports = Product;
