@@ -111,6 +111,7 @@ router.get("/byCategory/:category", async (req, res) => {
     const category = req.params.category;
     console.log("category => ", category);
     const toys_list = await Product.find({ Category: category });
+    console.log("toys_list => ", toys_list);
     res.json(toys_list);
   } catch (err) {
     console.error("Error fetching products by category:", err);

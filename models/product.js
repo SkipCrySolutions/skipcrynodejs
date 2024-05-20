@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const ProductsSchema = new mongoose.Schema({
+  _id: String,
   Code: String,
   Name: String,
   Description: String,
@@ -9,20 +10,13 @@ const ProductsSchema = new mongoose.Schema({
   AgeType: String,
   Brand: String,
   Category: String,
-  Quantity: Number,
   Class: String,
   rent30: Number,
   rent15: Number,
   bigSize: Boolean,
-  visible: Boolean,
-  ShopQty: Number,
   Link: String,
   Untraceable: Boolean,
-  NewArrival: Boolean,
-  Brand: String,
   Franchise: Boolean,
-  StoreId: String,
-  Remarks: String,
   VideoOnInsta: Boolean,
   SearchKey: String,
 });
