@@ -5,7 +5,7 @@ const router = express.Router();
 
 router.get("/", async (req, res) => {
   try {
-    const toys_list = await Product.find();
+    const toys_list = await Product.find({ visible: true, StoreId: "CHNPER1" });
     console.log("toys length", toys_list.length);
     res.json(toys_list);
   } catch (err) {
