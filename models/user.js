@@ -23,6 +23,7 @@ const userSchema = new mongoose.Schema({
   lastOrderClosed: Boolean,
   fineAmount: Number,
   paymentDone: Boolean,
+  outsideDeliveryZone: Boolean,
 });
 
 const User = mongoose.model("User", userSchema);
