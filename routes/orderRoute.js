@@ -1,6 +1,7 @@
 const express = require("express");
 const Order = require("../models/order");
-const Product = require("../models/product");
+const StoreProductMap = require("../models/storeProductMap");
+const User = require("../models/user");
 
 const router = express.Router();
 
@@ -19,7 +20,7 @@ router.get("/", async (req, res) => {
 router.get("/hold/:customerId", async (req, res) => {
   try {
     const customerId = req.params.customerId;
-    const orders = await Order.find({ customerId: customerId });
+    const orders = await Order.find({ customerId: customerId }).sort({_id: -1}).exec();
     console.log(orders);
     res.json(orders);
   } catch (err) {
@@ -62,23 +63,28 @@ router.get("/changeState/:orderId", async (req, res) => {
 router.post("/order", async (req, res) => {
   try {
     console.log("rr => ", req.body);
-    const { customerId, products, Status, orderDate, orderTotal } = req.body;
+    const {
+      customerId,
+      products,
+      Status,
+      orderDate,
+      orderTotal,
+      isNewCustomer,
+      addonDeposit,
+    } = req.body;
     const order = new Order({
       customerId,
       products,
       Status,
       orderDate,
       orderTotal,
+      AddonDeposit: addonDeposit,
     });
-    await order.save();
-    products.forEach(async (product1) => {
-      console.log("product => ", product1);
-      const product = await Product.findOne(product1.Code);
-      console.log("get product => ", product);
-      product.ShopQty -= 1;
-      await product.save();
-    });
-    res.json({ success: true });
+    const productsUpdated = await updateProductsCount(products);
+    const order1 = await order.save();
+    console.log("order1 => ", order1);
+    const userUpdated = await getUserAndUpdate(customerId, isNewCustomer);
+    res.json({ success: true, order1, userUpdated });
   } catch (err) {
     console.error("Error placing order:", err);
     res.status(500).send("Internal Server Error");
@@ -86,3 +92,46 @@ router.post("/order", async (req, res) => {
 });
 
 module.exports = router;
+
+async function updateProductsCount(products) {
+  for (const product1 of products) {
+    try {
+      console.log("product1 => ", product1);
+      const prod = product1.product;
+      console.log("Fetching product with code:", prod.Code);
+
+      const product = await StoreProductMap.findOne({ Code: prod.Code });
+
+      if (product) {
+        console.log("Fetched product => ", product);
+
+        if (product.ShopQty && product.ShopQty > 0) {
+          console.log('here', product, product.ShopQty);
+          product.ShopQty -= 1;
+          await product.save();
+          console.log(
+            "Product quantity reduced successfully. Updated product:",
+            product
+          );
+        } else {
+          console.error("Error: ShopQty is already 0 for product:", product);
+        }
+      } else {
+        console.error("Error: Document not found for code:", prod.Code);
+      }
+    } catch (error) {
+      console.error("Error fetching or updating product:", error);
+    }
+  }
+}
+
+async function getUserAndUpdate(customerId, isNewCustomer) {
+  const user = await User.findOne({ CustomerId: customerId });
+  console.log("user => ", user);
+  user.cartCount = 0;
+  if (isNewCustomer) {
+    user.DepositAmount = user.outsideDeliveryZone ? 2000 : 1500;
+    user.Status = "Active";
+  }
+  await user.save();
+}

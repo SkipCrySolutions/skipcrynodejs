@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const StoreProductsMapSchema = new mongoose.Schema({
-  _id: String,
+  _id: mongoose.Schema.Types.ObjectId,
   StoreId: String,
   Code: String,
   Quantity: Number,

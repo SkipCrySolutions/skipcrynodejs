@@ -70,9 +70,6 @@ router.delete("/clearCart/:customerId", async (req, res) => {
   try {
     const customerId = req.params.customerId;
     await Cart.deleteMany({ CustomerId: customerId });
-    const user = await User.findOne({ CustomerId: customerId });
-    user.cartCount = 0;
-    await user.save();
     res.json({ success: true });
   } catch (err) {
     console.error("Error deleting cart:", err);
