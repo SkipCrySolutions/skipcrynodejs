@@ -20,7 +20,9 @@ router.get("/", async (req, res) => {
 router.get("/hold/:customerId", async (req, res) => {
   try {
     const customerId = req.params.customerId;
-    const orders = await Order.find({ customerId: customerId }).sort({_id: -1}).exec();
+    const orders = await Order.find({ customerId: customerId })
+      .sort({ _id: -1 })
+      .exec();
     console.log(orders);
     res.json(orders);
   } catch (err) {
@@ -96,7 +98,7 @@ module.exports = router;
 async function updateProductsCount(products) {
   for (const product1 of products) {
     try {
-      console.log("product1 => ", product1);
+      console.log("product1 => ", product1, product1.return);
       const prod = product1.product;
       console.log("Fetching product with code:", prod.Code);
 
@@ -104,9 +106,10 @@ async function updateProductsCount(products) {
 
       if (product) {
         console.log("Fetched product => ", product);
+        product.NextAvailableBy = addDays(product1.return, 3);
 
         if (product.ShopQty && product.ShopQty > 0) {
-          console.log('here', product, product.ShopQty);
+          console.log("here", product, product.ShopQty);
           product.ShopQty -= 1;
           await product.save();
           console.log(
@@ -134,4 +137,21 @@ async function getUserAndUpdate(customerId, isNewCustomer) {
     user.Status = "Active";
   }
   await user.save();
+}
+
+function addDays(dateString, days) {
+  // Parse the date string into a Date object
+  let date = new Date(dateString);
+
+  // Check if the date is valid
+  if (isNaN(date.getTime())) {
+    throw new Error("Invalid date string");
+  }
+
+  // Add the specified number of days
+  date.setDate(date.getDate() + days);
+
+  // Convert the date back to a string (ISO format: YYYY-MM-DDTHH:MM:SS.sssZ)
+  // You can adjust the format as needed
+  return date.toISOString().split("T")[0];
 }

@@ -197,6 +197,7 @@ async function getProductsByStore(storeId) {
           NewArrival: 1,
           TimesRented: 1,
           Remarks: 1,
+          NextAvailableBy: 1,
           Code: "$productDetails.Code",
           Name: "$productDetails.Name",
           Description: "$productDetails.Description",

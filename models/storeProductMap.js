@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 
 const StoreProductsMapSchema = new mongoose.Schema({
-  _id: mongoose.Schema.Types.ObjectId,
   StoreId: String,
   Code: String,
   Quantity: Number,
@@ -10,6 +9,7 @@ const StoreProductsMapSchema = new mongoose.Schema({
   NewArrival: Boolean,
   TimesRented: Number,
   Remarks: String,
+  NextAvailableBy: String
 });
 
 const StoreProductMap = mongoose.model(
