@@ -17,7 +17,7 @@ router.get("/", async (req, res) => {
 router.get("/get/:customerId", async (req, res) => {
   try {
     const customerId = req.params.customerId;
-    const toyWallet = await ToyWallet.find({
+    const toyWallet = await ToyWallet.findOne({
       customerId,
     });
     console.log("toyWallet => ", toyWallet);
@@ -29,17 +29,21 @@ router.get("/get/:customerId", async (req, res) => {
 });
 
 router.put("/addAmountFromMoney/:customerId", async (req, res) => {
-    try {
-      const customerId = req.params.customerId;
-      const toyWallet = await ToyWallet.find({
-        customerId,
-      });
-      console.log("toyWallet => ", toyWallet);
-      res.json(toyWallet);
-    } catch (err) {
-      console.error("Error fetching toyWallet:", err);
-      res.status(500).send("Internal Server Error");
-    }
-  });
+  try {
+    const customerId = req.params.customerId;
+    const { amount } = req.body;
+    const toyWallet = await ToyWallet.findOne({
+      customerId,
+    });
+    console.log("toyWallet => ", toyWallet);
+    toyWallet.amountByAddingToWallet += amount;
+    toyWallet.totalAmount += amount;
+    toyWallet.save();
+    res.json({ success: true, toyWallet });
+  } catch (err) {
+    console.error("Error fetching toyWallet:", err);
+    res.status(500).send("Internal Server Error");
+  }
+});
 
 module.exports = router;

@@ -5,6 +5,7 @@ const User = require("../models/user");
 const authenticateSession = require("../middleware/authenticateSession");
 const generateAndCheckNumber = require("../utils/generateCustomerCode");
 const Session = require("../models/session");
+const ToyWallet = require("../models/toyWallet");
 
 const router = express.Router();
 
@@ -22,7 +23,7 @@ router.get("/", async (req, res) => {
 router.get("/get/:customerId", async (req, res) => {
   try {
     const id = req.params.customerId;
-    const user = await User.find({CustomerId: id});
+    const user = await User.find({ CustomerId: id });
     console.log("get user => ", user);
     res.json(user[0]);
   } catch (err) {
@@ -103,9 +104,20 @@ router.post("/signup", async (req, res) => {
     const { Mobile } = req.body;
     const userMobile = await User.findOne({ Mobile: Mobile });
     if (userMobile) {
-      res.status(409).json({ error: "User already exists with given phone number. Please login" });
+      res.status(409).json({
+        error: "User already exists with given phone number. Please login",
+      });
     } else {
       await user.save();
+      const toyWallet = new ToyWallet({
+        customerId: user.CustomerId,
+        totalAmount: 0,
+        amountFromRewards: 0,
+        amountFromGiftCards: 0,
+        amountByAddingToWallet: 0,
+        amountFromReferrals: 0,
+      });
+      await toyWallet.save();
       res.json(user);
     }
   } catch (error) {

@@ -2,11 +2,11 @@ const mongoose = require("mongoose");
 
 const ToyWalletSchema = new mongoose.Schema({
   customerId: String,
-  totalAmount: String,
-  amountFromRewards: String,
-  amountFromGiftCards: String,
-  amountByAddingToWallet: String,
-  amountFromReferrals: String,
+  totalAmount: Number,
+  amountFromRewards: Number,
+  amountFromGiftCards: Number,
+  amountByAddingToWallet: Number,
+  amountFromReferrals: Number,
 });
 
 const ToyWallet = mongoose.model("ToyWallet", ToyWalletSchema, "toyWallet");
