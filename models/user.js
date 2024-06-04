@@ -14,14 +14,13 @@ const userSchema = new mongoose.Schema({
   cartCount: { type: Number, default: 0 },
   KmDistance: Number,
   Status: String, // New, Active, Paused, Closed
-  RewardsCount: Number,
   DepositAmount: Number,
   SessionId: String,
   KidDob: String,
   Pincode: { type: Number, required: true },
-  DueDay: Number,
+  lastOrderDeliveryDate: String,
   lastOrderClosed: Boolean,
-  fineAmount: Number,
+  dueAmount: Number,
   paymentDone: Boolean,
   outsideDeliveryZone: Boolean,
 });
