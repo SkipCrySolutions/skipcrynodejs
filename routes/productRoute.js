@@ -141,9 +141,6 @@ router.get("/search", async (req, res) => {
     const toys_list1 = productsByStore.filter((product) =>
       regex.test(product.SearchKey)
     );
-    // const toys_list = await Product.find({
-    //   SearchKey: regex,
-    // });
     console.log("search toys list => ", toys_list1);
     res.json(toys_list1);
   } catch (err) {
@@ -158,9 +155,33 @@ router.get("/get/:code/store/:storeId", async (req, res) => {
     const store = req.params.storeId;
     console.log("code", code, store);
     const productsByStore = await getProductsByStore(store);
+    console.log("productsByStore => ", productsByStore);
     const product = productsByStore.find((product) => product.Code === code);
     // const product = await Product.findOne({ Code: code });
     console.log("product found ", product);
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+    res.json(product);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+// check availability in mother store
+router.get("/checkAndGet/:code/store/:storeId", async (req, res) => {
+  try {
+    const code = req.params.code;
+    const store = req.params.storeId;
+    console.log("code", code, store);
+    const productsByStore = await getProductsByStore(store);
+    console.log("productsByStore => ", productsByStore);
+    const product = productsByStore.find(
+      (product) => product.Code === code && product.ShopQty > 0
+    );
+    // const product = await Product.findOne({ Code: code });
+    console.log("product found with availabilty ", product);
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
