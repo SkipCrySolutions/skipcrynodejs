@@ -65,28 +65,21 @@ router.get("/changeState/:orderId", async (req, res) => {
 router.post("/order", async (req, res) => {
   try {
     console.log("rr => ", req.body);
-    const {
-      customerId,
-      products,
-      Status,
-      orderDate,
-      orderTotal,
-      isNewCustomer,
-      addonDeposit,
-    } = req.body;
-    const order = new Order({
-      customerId,
-      products,
-      Status,
-      orderDate,
-      orderTotal,
-      AddonDeposit: addonDeposit,
-    });
-    const productsUpdated = await updateProductsCount(products);
-    const order1 = await order.save();
-    console.log("order1 => ", order1);
-    const userUpdated = await getUserAndUpdate(customerId, isNewCustomer);
-    res.json({ success: true, order1, userUpdated });
+    const { storeId, products, ...remaining } = req.body;
+    console.log("remainign => ", remaining);
+    // order placed for customer - irrespective of different stores
+    const order = await placeOrder(products, remaining, storeId, storeId);
+    const motherStoreProducts = getProductsByMotherStore(products, storeId);
+    console.log("motherStoreProducts => ", motherStoreProducts);
+    if (motherStoreProducts.length > 0) {
+      const order = await placeOrderForMotherStore(
+        motherStoreProducts,
+        remaining,
+        "CHNPER1",
+        storeId
+      );
+    }
+    res.json({ success: true });
   } catch (err) {
     console.error("Error placing order:", err);
     res.status(500).send("Internal Server Error");
@@ -94,6 +87,73 @@ router.post("/order", async (req, res) => {
 });
 
 module.exports = router;
+
+function getProductsByMotherStore(products, storeId) {
+  return products.filter((productEntity) => {
+    const product = productEntity.product;
+    if (product.StoreId !== storeId) {
+      return product;
+    }
+  });
+}
+
+function getRentForProducts(products) {
+  let rent = 0;
+  products.forEach((productEntity) => {
+    rent += productEntity.rentedAmount;
+  });
+}
+
+async function placeOrder(products, remaining, storeId, mainStoreId) {
+  const {
+    customerId,
+    Status,
+    orderDate,
+    orderTotal,
+    isNewCustomer,
+    addonDeposit,
+  } = remaining;
+  let order = null;
+  if (storeId === mainStoreId) {
+    order = new Order({
+      customerId,
+      products,
+      Status,
+      orderDate,
+      orderTotal,
+      AddonDeposit: addonDeposit,
+      storeId,
+    });
+  }
+  console.log("order ===>>>> ", order);
+  const productsUpdated = await updateProductsCount(products);
+  const order1 = await order.save();
+  console.log("order1 => ", order1);
+  const userUpdated = await getUserAndUpdate(customerId, isNewCustomer);
+}
+
+async function placeOrderForMotherStore(
+  products,
+  remaining,
+  storeId,
+  mainStoreId
+) {
+  const { Status, orderDate } = remaining;
+  let order = null;
+  if (storeId !== mainStoreId) {
+    order = new Order({
+      customerId: mainStoreId,
+      products,
+      Status,
+      orderDate,
+      orderTotal: getRentForProducts(products),
+      AddonDeposit: 0,
+      storeId,
+    });
+    console.log("order ===>>>> ", order);
+    const order1 = await order.save();
+  }
+}
 
 async function updateProductsCount(products) {
   for (const product1 of products) {

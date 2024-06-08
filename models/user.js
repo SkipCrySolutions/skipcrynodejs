@@ -23,6 +23,7 @@ const userSchema = new mongoose.Schema({
   dueAmount: Number,
   paymentDone: Boolean,
   outsideDeliveryZone: Boolean,
+  StoreId: String
 });
 
 const User = mongoose.model("User", userSchema);
