@@ -6,6 +6,7 @@ const authenticateSession = require("../middleware/authenticateSession");
 const generateAndCheckNumber = require("../utils/generateCustomerCode");
 const Session = require("../models/session");
 const ToyWallet = require("../models/toyWallet");
+const generateReferralCode = require("../utils/generateCustomerReferralCode");
 
 const router = express.Router();
 
@@ -101,18 +102,22 @@ router.post("/signup", async (req, res) => {
       Status: "New",
     });
     console.log("user => ", user);
-    const { Mobile } = req.body;
+    const { Mobile, Name, referralCodeForSignup } = req.body;
+    const referralCode = await generateReferralCode(code, Name);
     const userMobile = await User.findOne({ Mobile: Mobile });
     if (userMobile) {
       res.status(409).json({
         error: "User already exists with given phone number. Please login",
       });
     } else {
+      user.referralCode = referralCode;
+      console.log("user => ", user);
       await user.save();
+      const referredBy = await validateReferralCode(referralCodeForSignup);
       const toyWallet = new ToyWallet({
         customerId: user.CustomerId,
-        totalAmount: 0,
-        amountFromRewards: 0,
+        totalAmount: referredBy ? 200 : 100,
+        amountFromRewards: referredBy ? 200 : 100,
         amountFromGiftCards: 0,
         amountByAddingToWallet: 0,
         amountFromReferrals: 0,
@@ -127,3 +132,19 @@ router.post("/signup", async (req, res) => {
 });
 
 module.exports = router;
+
+async function validateReferralCode(referralCode) {
+  console.log(referralCode);
+  const referredUser = await User.findOne({ referralCode });
+  if (referredUser) {
+    const toyWallet = await ToyWallet.findOne({
+      customerId: referredUser.CustomerId,
+    });
+    console.log('referredUser => ', referredUser);
+    console.log('toywallet => ', toyWallet);
+    toyWallet.totalAmount += 200;
+    toyWallet.amountFromReferrals += 200;
+    await toyWallet.save();
+  }
+  return referredUser;
+}
