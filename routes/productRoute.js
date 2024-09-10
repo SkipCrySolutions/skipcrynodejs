@@ -131,6 +131,28 @@ router.get("/byCategory/:category", async (req, res) => {
   }
 });
 
+const MEMBERSHIP_TYPES = ['Silver', 'Gold', 'Platinum'];
+
+router.get('/byMembershipType', async(req, res) => {
+  try {
+    const membershipType = req.query.membershipType;
+    console.log("membershipType => ", membershipType);
+
+    if(!MEMBERSHIP_TYPES.includes(membershipType)) {
+      throw new Error('Invalid membership type : ' + membershipType);
+    }
+
+    const productsByStore = await getProductsByStore(req.query.store);
+    const toys_list1 = productsByStore.filter(
+      (product) => product.membershipType === membershipType
+    );
+    res.json(toys_list1);
+  } catch (err) {
+    console.error("Error fetching products by membershipType:", err);
+    res.status(500).send(err.message ?? "Internal Server Error");
+  }
+});
+
 router.get("/search", async (req, res) => {
   try {
     const { searchKey, store } = req.query;
@@ -233,6 +255,7 @@ async function getProductsByStore(storeId) {
           bigSize: "$productDetails.bigSize",
           VideoOnInsta: "$productDetails.VideoOnInsta",
           SearchKey: "$productDetails.SearchKey",
+          membershipType: "$productDetails.Membership Type"
         },
       },
     ]);
