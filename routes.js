@@ -10,6 +10,7 @@ const notifyProductRoutes = require("./routes/notifyProductRoute");
 const toyWalletRoutes = require("./routes/toyWalletRoute");
 const blockToyRoutes = require("./routes/blockToyRoute");
 const connectToMongoDB = require("./config");
+const giftcardformRoutes=require("./routes/giftcardformRoute");
 
 router.get("/api", async (req, res) => {
   // root connection
@@ -26,5 +27,6 @@ router.use("/api/stores", storeRoutes);
 router.use("/api/notifyProduct", notifyProductRoutes);
 router.use("/api/toyWallet", toyWalletRoutes);
 router.use("/api/blockToy", blockToyRoutes);
+router.use("/api/giftcard_form",giftcardformRoutes);
 
 module.exports = router;
