@@ -9,8 +9,8 @@ const StoreSchema = new mongoose.Schema({
   OwnerContact: { type: Number, required: true },
   ManagerContact: { type: Number, required: true },
   MapsLocation: { type: String, required: true },
-  Latitude: String,
-  Longitude: String,
+  Latitude: Number,
+  Longitude: Number,
   Pincode: String
 });
 
