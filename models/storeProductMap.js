@@ -19,3 +19,5 @@ const StoreProductMap = mongoose.model(
 );
 
 module.exports = StoreProductMap;
+
+// TODO: Remove this model

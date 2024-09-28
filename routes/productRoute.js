@@ -1,12 +1,13 @@
 const express = require("express");
 const Product = require("../models/product");
 const StoreProductMap = require("../models/storeProductMap");
+const ProductQty = require("../models/productQty");
 
 const router = express.Router();
 
 router.get("/", async (req, res) => {
   try {
-    const toys_list = await Product.find({ visible: true, StoreId: "CHNPER1" });
+    const toys_list = await Product.find({ StoreId: "CHNPER1" });
     console.log("toys length", toys_list.length);
     res.json(toys_list);
   } catch (err) {
@@ -87,7 +88,7 @@ router.get("/byAge", async (req, res) => {
     const productsByStore = await getProductsByStore(req.query.store);
     console.log("pro => ", productsByStore);
     const toys_list1 = productsByStore.filter((product) => {
-      if (product.visible) {
+      // if (product.visible) {
         if (req.query && req.query.ageType === "preschool") {
           return (
             product.Age === "0+" || product.Age === "1+" || product.Age === "2+"
@@ -101,7 +102,7 @@ router.get("/byAge", async (req, res) => {
             product.Age === "6+" || product.Age === "7+" || product.Age === "8+"
           );
         }
-      }
+      // }
     });
     console.log("query => ", query);
     // const toys_list = await productsByStore.find(query);
@@ -171,20 +172,22 @@ router.get("/search", async (req, res) => {
   }
 });
 
-router.get("/get/:code/store/:storeId", async (req, res) => {
+
+router.get("/get/store/:storeId/:id/:code", async (req, res) => {
   try {
+    const productId = req.params.id;
     const code = req.params.code;
     const store = req.params.storeId;
-    console.log("code", code, store);
-    const productsByStore = await getProductsByStore(store);
-    console.log("productsByStore => ", productsByStore);
-    const product = productsByStore.find((product) => product.Code === code);
-    // const product = await Product.findOne({ Code: code });
+    console.log("code", productId, store);
+    const product = await Product.findById(productId);
     console.log("product found ", product);
-    if (!product) {
+    const productExtn = await getQtyByStoreAndProduct(product, store, code);
+    const updatedProduct = { ...product._doc, ...productExtn };
+    console.log("product found ", updatedProduct);
+    if (!updatedProduct) {
       return res.status(404).json({ message: "Product not found" });
     }
-    res.json(product);
+    res.json(updatedProduct);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal Server Error" });
@@ -216,15 +219,17 @@ router.get("/checkAndGet/:code/store/:storeId", async (req, res) => {
 
 module.exports = router;
 
+
 async function getProductsByStore(storeId) {
+  console.log("storeId => ", storeId);
   try {
     // Perform aggregation to join products with storeProducts
-    const result = await StoreProductMap.aggregate([
+    const result = await ProductQty.aggregate([
       { $match: { StoreId: storeId } },
       {
         $lookup: {
           from: "products",
-          localField: "Code",
+          localField: "ProductCode",
           foreignField: "Code",
           as: "productDetails",
         },
@@ -234,34 +239,73 @@ async function getProductsByStore(storeId) {
         $project: {
           _id: "$productDetails._id",
           StoreId: 1,
-          Quantity: 1,
-          visible: 1,
-          ShopQty: 1,
-          NewArrival: 1,
-          TimesRented: 1,
-          Remarks: 1,
-          NextAvailableBy: 1,
           Code: "$productDetails.Code",
           Name: "$productDetails.Name",
           Description: "$productDetails.Description",
-          MRP: "$productDetails.MRP",
           Age: "$productDetails.Age",
           AgeType: "$productDetails.AgeType",
           Brand: "$productDetails.Brand",
           Category: "$productDetails.Category",
-          Class: "$productDetails.Class",
-          rent30: "$productDetails.rent30",
-          rent15: "$productDetails.rent15",
           bigSize: "$productDetails.bigSize",
           VideoOnInsta: "$productDetails.VideoOnInsta",
           SearchKey: "$productDetails.SearchKey",
           membershipType: "$productDetails.Membership Type"
         },
       },
+      {
+        $group: {
+          _id: "$_id",
+          StoreId: { $first: "$StoreId" },
+          Code: { $first: "$Code" },
+          Name: { $first: "$Name" },
+          Description: { $first: "$Description" },
+          Age: { $first: "$Age" },
+          AgeType: { $first: "$AgeType" },
+          Brand: { $first: "$Brand" },
+          Category: { $first: "$Category" },
+          bigSize: { $first: "$bigSize" },
+          VideoOnInsta: { $first: "$VideoOnInsta" },
+          SearchKey: { $first: "$SearchKey" },
+          membershipType: { $first: "$membershipType" }
+        }
+      }
     ]);
 
     return result;
   } catch (error) {
     console.error("Error fetching products by store:", error);
+  }
+}
+
+async function getQtyByStoreAndProduct(product, storeId, productCode) {
+  try {
+    const qtyResult = await ProductQty.find({
+      StoreId: storeId,
+      ProductCode: productCode,
+    });
+    console.log("qtyResult => ", qtyResult);
+    const onlyAvailable = qtyResult.filter((qty) => qty.NextAvailable === "");
+    const highPreferenceQty = onlyAvailable.reduce((min, qty) => {
+      return qty.PreferenceNumber < min.PreferenceNumber ? qty : min;
+    }, qtyResult[0]);
+    console.log("highPreferenceQty => ", highPreferenceQty);
+    const productExtn = {
+      Quantity : qtyResult.length,
+      ShopQty : onlyAvailable.length,
+      TimesRented : qtyResult.reduce((acc, qty) => acc + qty.TimesRented, 0),
+      quantities : qtyResult,
+      mrp: qtyResult.reduce((max, qty) => {
+        return qty.Mrp > max ? qty.Mrp : max;
+      }, 0),
+      rent30: onlyAvailable.reduce((max, qty) => {
+        return qty.Rent30 > max ? qty.Rent30 : max;
+      }, 0) || 200,
+       // TODO: remove hardcoding
+      prefQtyCode: highPreferenceQty?.QtyCode,
+    }
+    console.log("getQtyByStoreAndProduct => ", productExtn);
+    return productExtn;
+  } catch (error) {
+    console.error("Error fetching product qty by store and product:", error);
   }
 }
