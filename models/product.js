@@ -5,20 +5,17 @@ const ProductsSchema = new mongoose.Schema({
   Code: String,
   Name: String,
   Description: String,
-  MRP: Number,
   Age: String,
   AgeType: String,
   Brand: String,
   Category: String,
-  Class: String,
-  rent30: Number,
-  rent15: Number,
   bigSize: Boolean,
   Link: String,
-  Untraceable: Boolean,
   Franchise: Boolean,
   VideoOnInsta: Boolean,
   SearchKey: String,
+  BudgetType: String,
+  SuitableForLibrary: Boolean,
 });
 
 const Product = mongoose.model("Product", ProductsSchema);
