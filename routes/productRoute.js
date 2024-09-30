@@ -85,23 +85,25 @@ router.get("/byAge", async (req, res) => {
   try {
     console.log("query req => ", req.query);
     let query = null;
-    const productsByStore = await getProductsByStore(req.query.store);
-    console.log("pro => ", productsByStore);
+    const productsByStore = await getProductsByStoreAndParentStore(
+      req.query.store,
+      req.query.parentStore
+    );
     const toys_list1 = productsByStore.filter((product) => {
       // if (product.visible) {
-        if (req.query && req.query.ageType === "preschool") {
-          return (
-            product.Age === "0+" || product.Age === "1+" || product.Age === "2+"
-          );
-        } else if (req.query && req.query.ageType === "playschool") {
-          return (
-            product.Age === "3+" || product.Age === "4+" || product.Age === "5+"
-          );
-        } else if (req.query && req.query.ageType === "primaryschool") {
-          return (
-            product.Age === "6+" || product.Age === "7+" || product.Age === "8+"
-          );
-        }
+      if (req.query && req.query.ageType === "preschool") {
+        return (
+          product.Age === "0+" || product.Age === "1+" || product.Age === "2+"
+        );
+      } else if (req.query && req.query.ageType === "playschool") {
+        return (
+          product.Age === "3+" || product.Age === "4+" || product.Age === "5+"
+        );
+      } else if (req.query && req.query.ageType === "primaryschool") {
+        return (
+          product.Age === "6+" || product.Age === "7+" || product.Age === "8+"
+        );
+      }
       // }
     });
     console.log("query => ", query);
@@ -132,15 +134,15 @@ router.get("/byCategory/:category", async (req, res) => {
   }
 });
 
-const MEMBERSHIP_TYPES = ['Silver', 'Gold', 'Platinum'];
+const MEMBERSHIP_TYPES = ["Silver", "Gold", "Platinum"];
 
-router.get('/byMembershipType', async(req, res) => {
+router.get("/byMembershipType", async (req, res) => {
   try {
     const membershipType = req.query.membershipType;
     console.log("membershipType => ", membershipType);
 
-    if(!MEMBERSHIP_TYPES.includes(membershipType)) {
-      throw new Error('Invalid membership type : ' + membershipType);
+    if (!MEMBERSHIP_TYPES.includes(membershipType)) {
+      throw new Error("Invalid membership type : " + membershipType);
     }
 
     const productsByStore = await getProductsByStore(req.query.store);
@@ -171,7 +173,6 @@ router.get("/search", async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
-
 
 router.get("/get/store/:storeId/:id/:code", async (req, res) => {
   try {
@@ -219,6 +220,35 @@ router.get("/checkAndGet/:code/store/:storeId", async (req, res) => {
 
 module.exports = router;
 
+async function getProductsByStoreAndParentStore(storeId, parentStoreId) {
+  const productsByStore = await getProductsByStore(storeId);
+  console.log("productsByStore => ", productsByStore);
+  const parentStoreProducts = await getProductsByStore(parentStoreId);
+  console.log("parentStoreProducts => ", parentStoreProducts);
+  // if current store has a product with ShopQty, then return that product
+  // else return parent store product
+  // also return parent store products that are not present in current store
+  const products = productsByStore.map((product) => {
+    const parentStoreProduct = parentStoreProducts.find(
+      (parentProduct) => parentProduct.Code === product.Code
+    );
+    if (product.ShopQty > 0) {
+      return product;
+    } else {
+      if (!parentStoreProduct) {
+        return product;
+      }
+      return parentStoreProduct;
+    }
+  });
+  console.log("products => ", products);
+  const parentStoreProductsNotInCurrentStore = parentStoreProducts.filter(
+    (parentProduct) =>
+      !products.find((product) => product.Code === parentProduct.Code)
+  );
+  console.log("parentStoreProductsNotInCurrentStore => ", parentStoreProductsNotInCurrentStore);
+  return [...products, ...parentStoreProductsNotInCurrentStore];
+}
 
 async function getProductsByStore(storeId) {
   console.log("storeId => ", storeId);
@@ -249,7 +279,7 @@ async function getProductsByStore(storeId) {
           bigSize: "$productDetails.bigSize",
           VideoOnInsta: "$productDetails.VideoOnInsta",
           SearchKey: "$productDetails.SearchKey",
-          membershipType: "$productDetails.Membership Type"
+          membershipType: "$productDetails.Membership Type",
         },
       },
       {
@@ -266,9 +296,9 @@ async function getProductsByStore(storeId) {
           bigSize: { $first: "$bigSize" },
           VideoOnInsta: { $first: "$VideoOnInsta" },
           SearchKey: { $first: "$SearchKey" },
-          membershipType: { $first: "$membershipType" }
-        }
-      }
+          membershipType: { $first: "$membershipType" },
+        },
+      },
     ]);
 
     return result;
@@ -285,24 +315,26 @@ async function getQtyByStoreAndProduct(product, storeId, productCode) {
     });
     console.log("qtyResult => ", qtyResult);
     const onlyAvailable = qtyResult.filter((qty) => qty.NextAvailable === "");
+    console.log("onlyAvailable => ", onlyAvailable);
     const highPreferenceQty = onlyAvailable.reduce((min, qty) => {
       return qty.PreferenceNumber < min.PreferenceNumber ? qty : min;
-    }, qtyResult[0]);
+    }, onlyAvailable[0]);
     console.log("highPreferenceQty => ", highPreferenceQty);
     const productExtn = {
-      Quantity : qtyResult.length,
-      ShopQty : onlyAvailable.length,
-      TimesRented : qtyResult.reduce((acc, qty) => acc + qty.TimesRented, 0),
-      quantities : qtyResult,
+      Quantity: qtyResult.length,
+      ShopQty: onlyAvailable.length,
+      TimesRented: qtyResult.reduce((acc, qty) => acc + qty.TimesRented, 0),
+      quantities: qtyResult,
       mrp: qtyResult.reduce((max, qty) => {
         return qty.Mrp > max ? qty.Mrp : max;
       }, 0),
-      rent30: onlyAvailable.reduce((max, qty) => {
-        return qty.Rent30 > max ? qty.Rent30 : max;
-      }, 0) || 200,
-       // TODO: remove hardcoding
+      rent30:
+        onlyAvailable.reduce((max, qty) => {
+          return qty.Rent30 > max ? qty.Rent30 : max;
+        }, 0) || 200,
+      // TODO: remove hardcoding
       prefQtyCode: highPreferenceQty?.QtyCode,
-    }
+    };
     console.log("getQtyByStoreAndProduct => ", productExtn);
     return productExtn;
   } catch (error) {
