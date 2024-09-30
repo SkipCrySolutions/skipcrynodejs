@@ -11,7 +11,8 @@ const StoreSchema = new mongoose.Schema({
   MapsLocation: { type: String, required: true },
   Latitude: Number,
   Longitude: Number,
-  Pincode: String
+  Pincode: String,
+  ParentStoreId: { type: String, required: true },
 });
 
 const Store = mongoose.model("Store", StoreSchema);

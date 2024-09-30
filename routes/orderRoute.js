@@ -1,7 +1,8 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const Order = require("../models/order");
-const StoreProductMap = require("../models/storeProductMap");
 const User = require("../models/user");
+const ProductQty = require("../models/productQty");
 
 const router = express.Router();
 
@@ -69,10 +70,13 @@ router.post("/order", async (req, res) => {
     console.log("remainign => ", remaining);
     // order placed for customer - irrespective of different stores
     const order = await placeOrder(products, remaining, storeId, storeId);
-    const motherStoreProducts = getProductsByMotherStore(products, storeId);
+    const motherStoreProducts = getProductsOrderedFromMotherStore(
+      products,
+      storeId
+    );
     console.log("motherStoreProducts => ", motherStoreProducts);
     if (motherStoreProducts.length > 0) {
-      const order = await placeOrderForMotherStore(
+      const order = await placeOrder(
         motherStoreProducts,
         remaining,
         "CHNPER1",
@@ -88,7 +92,7 @@ router.post("/order", async (req, res) => {
 
 module.exports = router;
 
-function getProductsByMotherStore(products, storeId) {
+function getProductsOrderedFromMotherStore(products, storeId) {
   return products.filter((productEntity) => {
     const product = productEntity.product;
     if (product.StoreId !== storeId) {
@@ -104,7 +108,9 @@ function getRentForProducts(products) {
   });
 }
 
-async function placeOrder(products, remaining, storeId, mainStoreId) {
+async function placeOrder(products, remaining, parentStoreId, mainStoreId) {
+  // const session = await mongoose.startSession();
+  // session.startTransaction();
   const {
     customerId,
     Status,
@@ -114,7 +120,7 @@ async function placeOrder(products, remaining, storeId, mainStoreId) {
     addonDeposit,
   } = remaining;
   let order = null;
-  if (storeId === mainStoreId) {
+  if (parentStoreId === mainStoreId) {
     order = new Order({
       customerId,
       products,
@@ -122,65 +128,58 @@ async function placeOrder(products, remaining, storeId, mainStoreId) {
       orderDate,
       orderTotal,
       AddonDeposit: addonDeposit,
-      storeId,
+      storeId: mainStoreId,
     });
-  }
-  console.log("order ===>>>> ", order);
-  const productsUpdated = await updateProductsCount(products);
-  const order1 = await order.save();
-  console.log("order1 => ", order1);
-  const userUpdated = await getUserAndUpdate(customerId, isNewCustomer);
-}
-
-async function placeOrderForMotherStore(
-  products,
-  remaining,
-  storeId,
-  mainStoreId
-) {
-  const { Status, orderDate } = remaining;
-  let order = null;
-  if (storeId !== mainStoreId) {
+  } else {
     order = new Order({
-      customerId: mainStoreId,
+      customerId,
       products,
       Status,
       orderDate,
       orderTotal: getRentForProducts(products),
       AddonDeposit: 0,
-      storeId,
+      storeId: parentStoreId,
     });
-    console.log("order ===>>>> ", order);
-    const order1 = await order.save();
   }
+  console.log("order ===>>>> ", order);
+  // const order1 = await order.save({ session });
+  const order1 = await order.save();
+  console.log("order1 => ", order1);
+  const productsUpdated = await updateProductsCount(products, parentStoreId);
+  console.log("productsUpdated => ", productsUpdated);
+  const userUpdated = await getUserAndUpdate(customerId, isNewCustomer);
+  console.log("userUpdated => ", userUpdated);
+  // await session.commitTransaction();
+  // session.endSession();
+  return { order: order1, productsUpdated, userUpdated };
 }
 
-async function updateProductsCount(products) {
+async function updateProductsCount(products, storeId) {
   for (const product1 of products) {
     try {
       console.log("product1 => ", product1, product1.return);
       const prod = product1.product;
-      console.log("Fetching product with code:", prod.Code);
+      console.log("Fetching product with code:", prod.prefQtyCode, storeId, prod.StoreId === storeId);
+      // update product quantity only when storeId matches
+      if (prod.StoreId === storeId) {
+        const productQty = await ProductQty.findOne({
+          QtyCode: prod.prefQtyCode,
+        });
+        console.log("productQty => ", productQty);
+        if (productQty) {
+          console.log("Fetched product => ", productQty);
+          productQty.NextAvailable = addDays(product1.return, 3);
 
-      const product = await StoreProductMap.findOne({ Code: prod.Code });
-
-      if (product) {
-        console.log("Fetched product => ", product);
-        product.NextAvailableBy = addDays(product1.return, 3);
-
-        if (product.ShopQty && product.ShopQty > 0) {
-          console.log("here", product, product.ShopQty);
-          product.ShopQty -= 1;
-          await product.save();
+          productQty.TimesRented += 1;
+          productQty.Earned += product1.rentedAmount;
+          await productQty.save();
           console.log(
             "Product quantity reduced successfully. Updated product:",
-            product
+            productQty
           );
         } else {
-          console.error("Error: ShopQty is already 0 for product:", product);
+          console.error("Error: Document not found for code:", prod.Code);
         }
-      } else {
-        console.error("Error: Document not found for code:", prod.Code);
       }
     } catch (error) {
       console.error("Error fetching or updating product:", error);
