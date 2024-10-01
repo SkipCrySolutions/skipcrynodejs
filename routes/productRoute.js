@@ -182,9 +182,9 @@ router.get("/get/store/:storeId/:id/:code", async (req, res) => {
     console.log("code", productId, store);
     const product = await Product.findById(productId);
     console.log("product found ", product);
-    const productExtn = await getQtyByStoreAndProduct(product, store, code);
+    const productExtn = await getQtyProductByStore(store, code);
     const updatedProduct = { ...product._doc, ...productExtn };
-    console.log("product found ", updatedProduct);
+    console.log("product after extn found ", updatedProduct);
     if (!updatedProduct) {
       return res.status(404).json({ message: "Product not found" });
     }
@@ -307,7 +307,7 @@ async function getProductsByStore(storeId) {
   }
 }
 
-async function getQtyByStoreAndProduct(product, storeId, productCode) {
+async function getQtyProductByStore(storeId, productCode) {
   try {
     const qtyResult = await ProductQty.find({
       StoreId: storeId,
@@ -334,6 +334,7 @@ async function getQtyByStoreAndProduct(product, storeId, productCode) {
         }, 0) || 200,
       // TODO: remove hardcoding
       prefQtyCode: highPreferenceQty?.QtyCode,
+      StoreId: storeId,
     };
     console.log("getQtyByStoreAndProduct => ", productExtn);
     return productExtn;

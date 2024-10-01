@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const orderSchema = new mongoose.Schema({
+  originalCustomerId: String,
   customerId: String,
   storeId: String,
   products: mongoose.Schema.Types.Mixed,
