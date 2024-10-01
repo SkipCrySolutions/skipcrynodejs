@@ -32,6 +32,48 @@ router.get("/hold/:customerId", async (req, res) => {
   }
 });
 
+router.get("/get/:status", async (req, res) => {
+  try {
+    const status = req.params.status;
+    console.log("status => ", status);
+    let reqStatus = "";
+    if (status === "placed") {
+      reqStatus = "Placed";
+    } else if (status === "accepted") {
+      reqStatus = "Accepted";
+    } else if (status === "packed") {
+      reqStatus = "Packed";
+    } else if (status === "ontheway") {
+      reqStatus = "OnTheWay";
+    } else if (status === "delivered") {
+      reqStatus = "Delivered";
+    } else if (status === "returnTime") {
+      reqStatus = "ReturnTime";
+    } else if (status === "toyCheck") {
+      reqStatus = "ToyCheck";
+    } else if (status === "closed") {
+      reqStatus = "Closed";
+    } else if (status === "all") {
+      reqStatus = "";
+    }
+    console.log("reqStatus => ", reqStatus);
+    if (reqStatus === "") {
+      const orders = await Order.find().sort({ _id: -1 }).exec();
+      console.log("get orders ", orders);
+      res.json(orders);
+    } else {
+      const orders = await Order.find({ Status: reqStatus })
+        .sort({ _id: -1 })
+        .exec();
+      console.log("get orders ", orders);
+      res.json(orders);
+    }
+  } catch (err) {
+    console.error("Error updating customer order state:", err);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
 router.get("/changeState/:orderId", async (req, res) => {
   try {
     const orderId = req.params.orderId;
@@ -69,20 +111,8 @@ router.post("/order", async (req, res) => {
     const { storeId, products, ...remaining } = req.body;
     console.log("remainign => ", remaining);
     // order placed for customer - irrespective of different stores
-    const order = await placeOrder(products, remaining, storeId, storeId);
-    const motherStoreProducts = getProductsOrderedFromMotherStore(
-      products,
-      storeId
-    );
-    console.log("motherStoreProducts => ", motherStoreProducts);
-    if (motherStoreProducts.length > 0) {
-      const order = await placeOrder(
-        motherStoreProducts,
-        remaining,
-        "CHNPER1",
-        storeId
-      );
-    }
+    const order = await placeOrder(products, remaining, storeId);
+    console.log("order => ", order);
     res.json({ success: true });
   } catch (err) {
     console.error("Error placing order:", err);
@@ -92,23 +122,8 @@ router.post("/order", async (req, res) => {
 
 module.exports = router;
 
-function getProductsOrderedFromMotherStore(products, storeId) {
-  return products.filter((productEntity) => {
-    const product = productEntity.product;
-    if (product.StoreId !== storeId) {
-      return product;
-    }
-  });
-}
-
-function getRentForProducts(products) {
-  let rent = 0;
-  products.forEach((productEntity) => {
-    rent += productEntity.rentedAmount;
-  });
-}
-
-async function placeOrder(products, remaining, parentStoreId, mainStoreId) {
+async function placeOrder(products, remaining, orderStoreId) {
+  console.log("order storeId => ", orderStoreId);
   // const session = await mongoose.startSession();
   // session.startTransaction();
   const {
@@ -120,70 +135,101 @@ async function placeOrder(products, remaining, parentStoreId, mainStoreId) {
     addonDeposit,
   } = remaining;
   let order = null;
-  if (parentStoreId === mainStoreId) {
-    order = new Order({
-      customerId,
-      products,
-      Status,
-      orderDate,
-      orderTotal,
-      AddonDeposit: addonDeposit,
-      storeId: mainStoreId,
-    });
-  } else {
-    order = new Order({
-      customerId,
-      products,
-      Status,
-      orderDate,
-      orderTotal: getRentForProducts(products),
-      AddonDeposit: 0,
-      storeId: parentStoreId,
-    });
+  order = new Order({
+    originalCustomerId: customerId,
+    customerId,
+    products: [],
+    Status,
+    orderDate,
+    orderTotal,
+    AddonDeposit: addonDeposit,
+    storeId: orderStoreId,
+  });
+  const mainOrderWithoutProducts = order.save();
+  console.log("products => ", products);
+  for (const productEntity of products) {
+    console.log("productEntity => ", productEntity);
+    let prodOrder = null;
+    let storeToUpdate = "";
+    if (productEntity?.product?.StoreId === orderStoreId) {
+      prodOrder = new Order({
+        originalCustomerId: customerId,
+        customerId,
+        products: [productEntity],
+        Status,
+        orderDate,
+        orderTotal: 0,
+        AddonDeposit: 0,
+        storeId: orderStoreId,
+      });
+      storeToUpdate = orderStoreId;
+      console.log("if", storeToUpdate);
+    } else {
+      const product = productEntity.product;
+      prodOrder = new Order({
+        originalCustomerId: customerId,
+        customerId: orderStoreId,
+        products: [productEntity],
+        Status,
+        orderDate,
+        orderTotal: productEntity.rentedAmount * 0.9,
+        AddonDeposit: 0,
+        storeId: product?.StoreId,
+      });
+      storeToUpdate = product?.StoreId;
+      console.log("else", storeToUpdate);
+    }
+    console.log("prodOrder ===>>>> ", prodOrder, storeToUpdate);
+    // const order1 = await order.save({ session });
+    const subOrderWithProduct = await prodOrder.save();
+    console.log("subOrderWithProduct => ", subOrderWithProduct);
+    const productUpdated = await updateProductCount(
+      productEntity,
+      storeToUpdate
+    );
   }
-  console.log("order ===>>>> ", order);
-  // const order1 = await order.save({ session });
-  const order1 = await order.save();
-  console.log("order1 => ", order1);
-  const productsUpdated = await updateProductsCount(products, parentStoreId);
-  console.log("productsUpdated => ", productsUpdated);
   const userUpdated = await getUserAndUpdate(customerId, isNewCustomer);
   console.log("userUpdated => ", userUpdated);
   // await session.commitTransaction();
   // session.endSession();
-  return { order: order1, productsUpdated, userUpdated };
+  return { success: true };
 }
 
-async function updateProductsCount(products, storeId) {
-  for (const product1 of products) {
-    try {
-      console.log("product1 => ", product1, product1.return);
-      const prod = product1.product;
-      console.log("Fetching product with code:", prod.prefQtyCode, storeId, prod.StoreId === storeId);
-      // update product quantity only when storeId matches
-      if (prod.StoreId === storeId) {
-        const productQty = await ProductQty.findOne({
-          QtyCode: prod.prefQtyCode,
-        });
-        console.log("productQty => ", productQty);
-        if (productQty) {
-          console.log("Fetched product => ", productQty);
-          productQty.NextAvailable = addDays(product1.return, 3);
+async function updateProductCount(productEntity, storeId) {
+  try {
+    console.log("product1 => ", productEntity, productEntity.return);
+    const prod = productEntity.product;
+    console.log(
+      "Fetching product with code:",
+      prod.prefQtyCode,
+      storeId,
+      prod.StoreId === storeId
+    );
+    // update product quantity only when storeId matches
+    if (prod.StoreId === storeId) {
+      const productQty = await ProductQty.findOne({
+        QtyCode: prod.prefQtyCode,
+      });
+      console.log("productQty => ", productQty);
+      if (productQty) {
+        console.log("Fetched product => ", productQty);
+        productQty.NextAvailable = addDays(productEntity.return, 3);
 
-          productQty.TimesRented += 1;
-          productQty.Earned += product1.rentedAmount;
-          await productQty.save();
-          console.log(
-            "Product quantity reduced successfully. Updated product:",
-            productQty
-          );
-        } else {
-          console.error("Error: Document not found for code:", prod.Code);
-        }
+        productQty.TimesRented += 1;
+        productQty.Earned += productEntity.rentedAmount;
+        await productQty.save();
+        console.log(
+          "Product quantity reduced successfully. Updated product:",
+          productQty
+        );
+      } else {
+        console.error("Error: Document not found for code:", prod.Code);
       }
-    } catch (error) {
-      console.error("Error fetching or updating product:", error);
+    } else {
+      console.log("Product not found for code:", prod.Code);
     }
+  } catch (error) {
+    console.error("Error fetching or updating product:", error);
   }
 }
 
