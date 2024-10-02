@@ -8,7 +8,8 @@ const orderSchema = new mongoose.Schema({
   Status: String,
   orderDate: String,
   orderTotal: Number,
-  AddonDeposit: Number
+  AddonDeposit: Number,
+  orderId: String,
 });
 
 const Order = mongoose.model("Order", orderSchema);
