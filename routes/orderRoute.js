@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const Order = require("../models/order");
 const User = require("../models/user");
 const ProductQty = require("../models/productQty");
+const { v4: uuidv4 } = require("uuid");
 
 const router = express.Router();
 
@@ -48,9 +49,9 @@ router.get("/get/:status", async (req, res) => {
     } else if (status === "delivered") {
       reqStatus = "Delivered";
     } else if (status === "returnTime") {
-      reqStatus = "ReturnTime";
+      reqStatus = "Returned";
     } else if (status === "toyCheck") {
-      reqStatus = "ToyCheck";
+      reqStatus = "ToyChecked";
     } else if (status === "closed") {
       reqStatus = "Closed";
     } else if (status === "all") {
@@ -58,15 +59,36 @@ router.get("/get/:status", async (req, res) => {
     }
     console.log("reqStatus => ", reqStatus);
     if (reqStatus === "") {
-      const orders = await Order.find().sort({ _id: -1 }).exec();
-      console.log("get orders ", orders);
-      res.json(orders);
-    } else {
-      const orders = await Order.find({ Status: reqStatus })
+      const orders = await Order.find({ orderTotal: { $gt: 0 } })
         .sort({ _id: -1 })
         .exec();
-      console.log("get orders ", orders);
+      console.log("get  all orders ", orders);
       res.json(orders);
+    } else {
+      const orders = await Order.find({
+        Status: reqStatus,
+        orderTotal: { $gt: 0 },
+      })
+        .sort({ _id: -1 })
+        .exec();
+      console.log("get orders by status ", orders);
+      const mergedOrders = orders.reduce((acc, order) => {
+        if (!acc[order.customerId]) {
+          acc[order.customerId] = {
+            ...order.toObject(),
+            products: [...order.products],
+            orderTotal: order.orderTotal,
+          };
+        } else {
+          acc[order.customerId].products.push(...order.products);
+          acc[order.customerId].orderTotal += order.orderTotal;
+        }
+        return acc;
+      }, {});
+
+      const mergedOrdersArray = Object.values(mergedOrders);
+      console.log("merged orders by customer id", mergedOrdersArray);
+      res.json(mergedOrdersArray);
     }
   } catch (err) {
     console.error("Error updating customer order state:", err);
@@ -74,30 +96,37 @@ router.get("/get/:status", async (req, res) => {
   }
 });
 
-router.get("/changeState/:orderId", async (req, res) => {
+router.get("/changeState/:storeId/:customerId/:orderId", async (req, res) => {
   try {
+    const storeId = req.params.storeId;
     const orderId = req.params.orderId;
-    const order = await Order.findById(orderId);
-    let newState = "";
-    if (order.Status === "Placed") {
-      newState = "Accepted";
-    } else if (order.Status === "Accepted") {
-      newState = "Packed";
-    } else if (order.Status === "Packed") {
-      newState = "OnTheWay";
-    } else if (order.Status === "OnTheWay") {
-      newState = "Delivered";
-    } else if (order.Status === "Delivered") {
-      newState = "ReturnTime";
-    } else if (order.Status === "ReturnTime") {
-      newState = "Returned";
-    } else if (order.Status === "Returned") {
-      newState = "ToyChecked";
-    } else if (order.Status === "ToyChecked") {
-      newState = "Closed";
+    const customerId = req.params.customerId;
+    console.log("orderId => ", orderId);
+    console.log("customerId => ", customerId);
+    const orders = await Order.find({ orderId, customerId, storeId });
+    console.log("orders => ", orders);
+    for (const order of orders) {
+      let newState = "";
+      if (order.Status === "Placed") {
+        newState = "Accepted";
+      } else if (order.Status === "Accepted") {
+        newState = "Packed";
+      } else if (order.Status === "Packed") {
+        newState = "OnTheWay";
+      } else if (order.Status === "OnTheWay") {
+        newState = "Delivered";
+      } else if (order.Status === "Delivered") {
+        newState = "ReturnTime";
+      } else if (order.Status === "ReturnTime") {
+        newState = "Returned";
+      } else if (order.Status === "Returned") {
+        newState = "ToyChecked";
+      } else if (order.Status === "ToyChecked") {
+        newState = "Closed";
+      }
+      console.log("new State => ", newState);
+      await order.updateOne({ Status: newState, orderId, customerId, storeId });
     }
-    console.log("new State => ", newState);
-    await order.updateOne({ Status: newState });
     res.json({ success: true });
   } catch (err) {
     console.error("Error updating customer order state:", err);
@@ -135,6 +164,8 @@ async function placeOrder(products, remaining, orderStoreId) {
     addonDeposit,
   } = remaining;
   let order = null;
+  let orderId = uuidv4();
+  console.log("orderId => ", orderId);
   order = new Order({
     originalCustomerId: customerId,
     customerId,
@@ -144,6 +175,7 @@ async function placeOrder(products, remaining, orderStoreId) {
     orderTotal,
     AddonDeposit: addonDeposit,
     storeId: orderStoreId,
+    orderId,
   });
   const mainOrderWithoutProducts = order.save();
   console.log("products => ", products);
@@ -161,6 +193,7 @@ async function placeOrder(products, remaining, orderStoreId) {
         orderTotal: 0,
         AddonDeposit: 0,
         storeId: orderStoreId,
+        orderId,
       });
       storeToUpdate = orderStoreId;
       console.log("if", storeToUpdate);
@@ -175,6 +208,7 @@ async function placeOrder(products, remaining, orderStoreId) {
         orderTotal: productEntity.rentedAmount * 0.9,
         AddonDeposit: 0,
         storeId: product?.StoreId,
+        orderId,
       });
       storeToUpdate = product?.StoreId;
       console.log("else", storeToUpdate);
@@ -192,6 +226,7 @@ async function placeOrder(products, remaining, orderStoreId) {
   console.log("userUpdated => ", userUpdated);
   // await session.commitTransaction();
   // session.endSession();
+
   return { success: true };
 }
 
@@ -209,6 +244,7 @@ async function updateProductCount(productEntity, storeId) {
     if (prod.StoreId === storeId) {
       const productQty = await ProductQty.findOne({
         QtyCode: prod.prefQtyCode,
+        StoreId: storeId,
       });
       console.log("productQty => ", productQty);
       if (productQty) {

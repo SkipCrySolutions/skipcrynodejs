@@ -225,29 +225,12 @@ async function getProductsByStoreAndParentStore(storeId, parentStoreId) {
   console.log("productsByStore => ", productsByStore);
   const parentStoreProducts = await getProductsByStore(parentStoreId);
   console.log("parentStoreProducts => ", parentStoreProducts);
-  // if current store has a product with ShopQty, then return that product
-  // else return parent store product
-  // also return parent store products that are not present in current store
-  const products = productsByStore.map((product) => {
-    const parentStoreProduct = parentStoreProducts.find(
-      (parentProduct) => parentProduct.Code === product.Code
-    );
-    if (product.ShopQty > 0) {
-      return product;
-    } else {
-      if (!parentStoreProduct) {
-        return product;
-      }
-      return parentStoreProduct;
-    }
-  });
-  console.log("products => ", products);
   const parentStoreProductsNotInCurrentStore = parentStoreProducts.filter(
     (parentProduct) =>
-      !products.find((product) => product.Code === parentProduct.Code)
+      !productsByStore.find((product) => product.Code === parentProduct.Code)
   );
   console.log("parentStoreProductsNotInCurrentStore => ", parentStoreProductsNotInCurrentStore);
-  return [...products, ...parentStoreProductsNotInCurrentStore];
+  return [...productsByStore, ...parentStoreProductsNotInCurrentStore];
 }
 
 async function getProductsByStore(storeId) {
@@ -255,7 +238,7 @@ async function getProductsByStore(storeId) {
   try {
     // Perform aggregation to join products with storeProducts
     const result = await ProductQty.aggregate([
-      { $match: { StoreId: storeId } },
+      { $match: { StoreId: storeId, NextAvailable: '' } },
       {
         $lookup: {
           from: "products",
@@ -280,25 +263,27 @@ async function getProductsByStore(storeId) {
           VideoOnInsta: "$productDetails.VideoOnInsta",
           SearchKey: "$productDetails.SearchKey",
           membershipType: "$productDetails.Membership Type",
+          NextAvailable: "$NextAvailable",
+          QtyCode: "$QtyCode",
         },
       },
-      {
-        $group: {
-          _id: "$_id",
-          StoreId: { $first: "$StoreId" },
-          Code: { $first: "$Code" },
-          Name: { $first: "$Name" },
-          Description: { $first: "$Description" },
-          Age: { $first: "$Age" },
-          AgeType: { $first: "$AgeType" },
-          Brand: { $first: "$Brand" },
-          Category: { $first: "$Category" },
-          bigSize: { $first: "$bigSize" },
-          VideoOnInsta: { $first: "$VideoOnInsta" },
-          SearchKey: { $first: "$SearchKey" },
-          membershipType: { $first: "$membershipType" },
-        },
-      },
+      // {
+      //   $group: {
+      //     _id: "$_id",
+      //     StoreId: { $first: "$StoreId" },
+      //     Code: { $first: "$Code" },
+      //     Name: { $first: "$Name" },
+      //     Description: { $first: "$Description" },
+      //     Age: { $first: "$Age" },
+      //     AgeType: { $first: "$AgeType" },
+      //     Brand: { $first: "$Brand" },
+      //     Category: { $first: "$Category" },
+      //     bigSize: { $first: "$bigSize" },
+      //     VideoOnInsta: { $first: "$VideoOnInsta" },
+      //     SearchKey: { $first: "$SearchKey" },
+      //     membershipType: { $first: "$membershipType" },
+      //   },
+      // },
     ]);
 
     return result;
