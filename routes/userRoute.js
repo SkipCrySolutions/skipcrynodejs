@@ -73,9 +73,9 @@ router.post("/login", async (req, res) => {
     // Compare password
     const isPasswordValid = await bcrypt.compare(password, user.Password);
 
-    // if (!isPasswordValid) {
-    //   return res.status(401).json({ error: 'Invalid password' });
-    // }
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Invalid password' });
+    }
 
     // Generate JWT token
     const token = jwt.sign({ userId: user._id }, "your_secret_key");
@@ -97,8 +97,14 @@ router.post("/login", async (req, res) => {
 router.post("/signup", async (req, res) => {
   try {
     const code = await generateAndCheckNumber();
+
+     // Hash the password before saving it
+     const saltRounds = 10;  // Number of salt rounds for bcrypt
+     const hashedPassword = await bcrypt.hash(req.body.Password, saltRounds);  // Hash the password
+ 
     const user = new User({
       ...req.body,
+      Password: hashedPassword, 
       CustomerId: `SCM${code}`,
       Status: "New",
     });
