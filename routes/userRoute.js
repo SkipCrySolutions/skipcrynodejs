@@ -7,6 +7,7 @@ const generateAndCheckNumber = require("../utils/generateCustomerCode");
 const Session = require("../models/session");
 const ToyWallet = require("../models/toyWallet");
 const generateReferralCode = require("../utils/generateCustomerReferralCode");
+const Store = require("../models/store");
 
 const router = express.Router();
 
@@ -21,13 +22,13 @@ router.get("/", async (req, res) => {
   }
 });
 
-
-router.get("/get/:customerId", async (req, res) => {
+router.get("/get/:id/:customerId", async (req, res) => {
   try {
-    const id = req.params.customerId;
-    const user = await User.find({ CustomerId: id });
-    console.log("get user => ", user);
-    res.json(user[0]);
+    const id = req.params.id;
+    const customerCode = req.params.customerId;
+    const matchedUsers = await getAccumulatedUserData(customerCode);
+    console.log("get user => ", matchedUsers);
+    res.json(matchedUsers[0]);
   } catch (err) {
     console.error("Error fetching users:", err);
     res.status(500).send("Internal Server Error");
@@ -87,7 +88,10 @@ router.post("/login", async (req, res) => {
     const session = new Session({ userId: user._id });
     await session.save();
 
-    res.json({ token, ...userWithoutPassword, sessionId: session._id });
+    const accumulatedUserData = await getAccumulatedUserData(user.CustomerId);
+    console.log("accumulatedUserData => ", accumulatedUserData);
+
+    res.json({ token, ...userWithoutPassword, sessionId: session._id, ...accumulatedUserData[0] });
   } catch (error) {
     console.error("Error logging in:", error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -141,11 +145,58 @@ async function validateReferralCode(referralCode) {
     const toyWallet = await ToyWallet.findOne({
       customerId: referredUser.CustomerId,
     });
-    console.log('referredUser => ', referredUser);
-    console.log('toywallet => ', toyWallet);
+    console.log("referredUser => ", referredUser);
+    console.log("toywallet => ", toyWallet);
     toyWallet.totalAmount += 200;
     toyWallet.amountFromReferrals += 200;
     await toyWallet.save();
   }
   return referredUser;
+}
+
+async function getAccumulatedUserData(customerId) {
+  console.log("customerId => ", customerId);
+  try {
+    // Perform aggregation to join users with toywallet
+    const result = await ToyWallet.aggregate([
+      { $match: { customerId: customerId } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "customerId",
+          foreignField: "CustomerId",
+          as: "userDetails",
+        },
+      },
+      { $unwind: "$userDetails" },
+      {
+        $project: {
+          _id: "$userDetails._id",
+          CustomerId: "$userDetails.CustomerId",
+          Name: "$userDetails.Name",
+          Mobile: "$userDetails.Mobile",
+          Email: "$userDetails.Email",
+          Status: "$userDetails.Status",
+          Address: "$userDetails.Address",
+          City: "$userDetails.City",
+          Pincode: "$userDetails.Pincode",
+          referralCode: "$userDetails.referralCode",
+          RegisterDay: "$userDetails.RegisterDay",
+          Maps_Link: "$userDetails.Maps_Link",
+          DepositAmount: "$userDetails.DepositAmount",
+          KmDistance: "$userDetails.KmDistance",
+          totalAmount: "$totalAmount",
+          amountFromRewards: "$amountFromRewards",
+          amountFromGiftCards: "$amountFromGiftCards",
+          amountByAddingToWallet: "$amountByAddingToWallet",
+          amountFromReferrals: "$amountFromReferrals",
+          StoreId: "$userDetails.StoreId",
+        },
+      },
+    ]);
+
+    return result;
+  } catch (error) {
+    console.error("Error fetching users by customer id:", error);
+  }
 }

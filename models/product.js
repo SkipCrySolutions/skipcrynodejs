@@ -9,13 +9,12 @@ const ProductsSchema = new mongoose.Schema({
   AgeType: String,
   Brand: String,
   Category: String,
-  bigSize: Boolean,
   Link: String,
   Franchise: Boolean,
-  VideoOnInsta: Boolean,
   SearchKey: String,
   BudgetType: String,
   SuitableForLibrary: Boolean,
+  DriveImageLink: String,
 });
 
 const Product = mongoose.model("Product", ProductsSchema);

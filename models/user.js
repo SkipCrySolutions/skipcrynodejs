@@ -18,6 +18,7 @@ const userSchema = new mongoose.Schema({
   SessionId: String,
   KidDob: String,
   Pincode: { type: Number, required: true },
+  customerSinceDate: String,
   lastOrderDeliveryDate: String,
   lastOrderClosed: Boolean,
   dueAmount: Number,

@@ -14,6 +14,10 @@ const ProductQtySchema = new mongoose.Schema({
   Visible: Boolean,
   New: Boolean,
   PreferenceNumber: Number,
+  Quantity: Number,
+  ShopQty: Number,
+  BinNumber: String,
+  Age: String
 });
 
 const ProductQty = mongoose.model("ProductQty", ProductQtySchema, "productQuantityMap");

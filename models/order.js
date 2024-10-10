@@ -7,9 +7,16 @@ const orderSchema = new mongoose.Schema({
   products: mongoose.Schema.Types.Mixed,
   Status: String,
   orderDate: String,
+  toysTotal: Number,
+  deliveryTotal: Number,
   orderTotal: Number,
+  deductFromWallet: Number,
+  amountToPay: Number,
   AddonDeposit: Number,
   orderId: String,
+  statusChangeDate: String,
+  productQtyCode: String,
+  isExtend: Boolean,
 });
 
 const Order = mongoose.model("Order", orderSchema);
