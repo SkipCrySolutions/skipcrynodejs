@@ -221,71 +221,81 @@ router.get("/checkAndGet/:code/store/:storeId", async (req, res) => {
 module.exports = router;
 
 async function getProductsByStoreAndParentStore(storeId, parentStoreId) {
-  const productsByStore = await getProductsByStore(storeId);
-  console.log("productsByStore => ", productsByStore);
-  const parentStoreProducts = await getProductsByStore(parentStoreId);
-  console.log("parentStoreProducts => ", parentStoreProducts);
-  const parentStoreProductsNotInCurrentStore = parentStoreProducts.filter(
-    (parentProduct) =>
-      !productsByStore.find((product) => product.Code === parentProduct.Code)
-  );
-  console.log("parentStoreProductsNotInCurrentStore => ", parentStoreProductsNotInCurrentStore);
-  return [...productsByStore, ...parentStoreProductsNotInCurrentStore];
+  let finalList = [];
+  console.log("storeId => ", storeId);
+  console.log("parentStoreId => ", parentStoreId);
+  if (storeId === parentStoreId) {
+    finalList = await getProductsByStore(storeId);
+    console.log("finalList => ", finalList);
+  } else {
+    const productsByStore = await getProductsByStore(storeId);
+    console.log("productsByStore => ", productsByStore);
+    const parentStoreProducts = await getProductsByStore(parentStoreId);
+    console.log("parentStoreProducts => ", parentStoreProducts);
+    const parentStoreProductsNotInCurrentStore = parentStoreProducts.filter(
+      (parentProduct) =>
+        !productsByStore.find((product) => product.Code === parentProduct.Code)
+    );
+    console.log(
+      "parentStoreProductsNotInCurrentStore => ",
+      parentStoreProductsNotInCurrentStore
+    );
+    finalList = [...productsByStore, ...parentStoreProductsNotInCurrentStore];
+  }
+  console.log("finalList => ", finalList);
+  // Remove duplicates by Code and prioritize PreferenceNumber
+  const uniqueProducts = finalList.reduce((acc, product) => {
+    const existingProduct = acc.find((p) => p.Code === product.Code);
+    if (existingProduct) {
+      if (product.PreferenceNumber < existingProduct.PreferenceNumber) {
+        acc = acc.filter((p) => p.Code !== product.Code);
+        acc.push(product);
+      }
+    } else {
+      acc.push(product);
+    }
+    return acc;
+  }, []);
+  finalList = uniqueProducts;
+  return finalList;
 }
 
 async function getProductsByStore(storeId) {
   console.log("storeId => ", storeId);
   try {
-    // Perform aggregation to join products with storeProducts
     const result = await ProductQty.aggregate([
-      { $match: { StoreId: storeId, NextAvailable: '' } },
+      { $match: { StoreId: storeId, $or: [{ NextAvailable: "" }] } },
       {
-        $lookup: {
-          from: "products",
-          localField: "ProductCode",
-          foreignField: "Code",
-          as: "productDetails",
-        },
+      $lookup: {
+        from: "products",
+        localField: "ProductCode",
+        foreignField: "Code",
+        as: "productDetails",
+      },
       },
       { $unwind: "$productDetails" },
       {
-        $project: {
-          _id: "$productDetails._id",
-          StoreId: 1,
-          Code: "$productDetails.Code",
-          Name: "$productDetails.Name",
-          Description: "$productDetails.Description",
-          Age: "$productDetails.Age",
-          AgeType: "$productDetails.AgeType",
-          Brand: "$productDetails.Brand",
-          Category: "$productDetails.Category",
-          bigSize: "$productDetails.bigSize",
-          VideoOnInsta: "$productDetails.VideoOnInsta",
-          SearchKey: "$productDetails.SearchKey",
-          membershipType: "$productDetails.Membership Type",
-          NextAvailable: "$NextAvailable",
-          QtyCode: "$QtyCode",
-        },
+      $project: {
+        _id: "$productDetails._id",
+        StoreId: 1,
+        Code: "$productDetails.Code",
+        Name: "$productDetails.Name",
+        Description: "$productDetails.Description",
+        Age: "$productDetails.Age",
+        AgeType: "$productDetails.AgeType",
+        Brand: "$productDetails.Brand",
+        Category: "$productDetails.Category",
+        bigSize: "$productDetails.bigSize",
+        VideoOnInsta: "$productDetails.VideoOnInsta",
+        SearchKey: "$productDetails.SearchKey",
+        membershipType: "$productDetails.Membership Type",
+        NextAvailable: "$NextAvailable",
+        QtyCode: "$QtyCode",
+        PreferenceNumber: "$PreferenceNumber",
       },
-      // {
-      //   $group: {
-      //     _id: "$_id",
-      //     StoreId: { $first: "$StoreId" },
-      //     Code: { $first: "$Code" },
-      //     Name: { $first: "$Name" },
-      //     Description: { $first: "$Description" },
-      //     Age: { $first: "$Age" },
-      //     AgeType: { $first: "$AgeType" },
-      //     Brand: { $first: "$Brand" },
-      //     Category: { $first: "$Category" },
-      //     bigSize: { $first: "$bigSize" },
-      //     VideoOnInsta: { $first: "$VideoOnInsta" },
-      //     SearchKey: { $first: "$SearchKey" },
-      //     membershipType: { $first: "$membershipType" },
-      //   },
-      // },
+      },
     ]);
-
+    console.log("result => ", result);
     return result;
   } catch (error) {
     console.error("Error fetching products by store:", error);
