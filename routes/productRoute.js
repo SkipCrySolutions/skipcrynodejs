@@ -1,15 +1,18 @@
 const express = require("express");
 const Product = require("../models/product");
-const StoreProductMap = require("../models/storeProductMap");
 const ProductQty = require("../models/productQty");
 
 const router = express.Router();
 
 router.get("/", async (req, res) => {
   try {
-    const toys_list = await Product.find({ StoreId: "CHNPER1" });
-    console.log("toys length", toys_list.length);
-    res.json(toys_list);
+    const productsByStore = await getProductsByStoreAndParentStore(
+      req.query.store,
+      req.query.parentStore
+    );
+    // const toys_list = await Product.find({ StoreId: "CHNPER1" });
+    console.log("toys length", productsByStore.length);
+    res.json(productsByStore);
   } catch (err) {
     console.error("Error fetching visible products:", err);
     res.status(500).send("Internal Server Error");
@@ -77,6 +80,56 @@ router.get("/hidden", async (req, res) => {
     res.json(toys_list);
   } catch (err) {
     console.error("Error fetching products:", err);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+router.post("/filter", async (req, res) => {
+  try {
+    const { age, category, brand, price } = req.body;
+    let query = {};
+
+    if (age && age.length > 0) {
+      query.AgeType = { $in: age };
+    }
+
+    if (category && category.length > 0) {
+      query.Category = { $in: category };
+    }
+
+    if (brand && brand.length > 0) {
+      query.Brand = { $in: brand };
+    }
+
+    if (price && price.length > 0) {
+      const priceRange = price[0].split("-").map(Number);
+      query.rent30 = { $gte: priceRange[0], $lte: priceRange[1] };
+    }
+    const productsByStore = await getProductsByStoreAndParentStore(
+      req.query.store,
+      req.query.parentStore
+    );
+    const filteredProducts = productsByStore.filter((product) => {
+      for (let key in query) {
+        if (query[key].$in && !query[key].$in.includes(product[key])) {
+          return false;
+        }
+        if (query[key].$gte && product[key] < query[key].$gte) {
+          return false;
+        }
+        if (query[key].$lte && product[key] > query[key].$lte) {
+          return false;
+        }
+      }
+      return true;
+    });
+    console.log("productsByStore => ", productsByStore.lenghth);
+    console.log("query => ", query);
+    // const filteredProducts = await Product.find(query);
+    console.log("filteredProducts => ", filteredProducts.length);
+    res.json(filteredProducts);
+  } catch (err) {
+    console.error("Error fetching filtered products:", err);
     res.status(500).send("Internal Server Error");
   }
 });
@@ -158,9 +211,12 @@ router.get("/byMembershipType", async (req, res) => {
 
 router.get("/search", async (req, res) => {
   try {
-    const { searchKey, store } = req.query;
+    const { searchKey, store, parentStore } = req.query;
     console.log("searchKey => ", searchKey);
-    const productsByStore = await getProductsByStore(store);
+    const productsByStore = await getProductsByStoreAndParentStore(
+      store,
+      parentStore
+    );
     console.log("pro => ", productsByStore);
     const regex = new RegExp(searchKey, "i");
     const toys_list1 = productsByStore.filter((product) =>
@@ -220,29 +276,29 @@ router.get("/checkAndGet/:code/store/:storeId", async (req, res) => {
 
 module.exports = router;
 
-async function getProductsByStoreAndParentStore(storeId, parentStoreId) {
+async function getProductsByStoreAndParentStore(storeId, parentStoreId, query) {
   let finalList = [];
   console.log("storeId => ", storeId);
   console.log("parentStoreId => ", parentStoreId);
   if (storeId === parentStoreId) {
-    finalList = await getProductsByStore(storeId);
-    console.log("finalList => ", finalList);
+    finalList = await getProductsByStore(storeId, query);
+    console.log("finalList => ", finalList.length);
   } else {
     const productsByStore = await getProductsByStore(storeId);
-    console.log("productsByStore => ", productsByStore);
+    console.log("productsByStore => ", productsByStore.length);
     const parentStoreProducts = await getProductsByStore(parentStoreId);
-    console.log("parentStoreProducts => ", parentStoreProducts);
+    console.log("parentStoreProducts => ", parentStoreProducts.length);
     const parentStoreProductsNotInCurrentStore = parentStoreProducts.filter(
       (parentProduct) =>
         !productsByStore.find((product) => product.Code === parentProduct.Code)
     );
     console.log(
       "parentStoreProductsNotInCurrentStore => ",
-      parentStoreProductsNotInCurrentStore
+      parentStoreProductsNotInCurrentStore.length
     );
     finalList = [...productsByStore, ...parentStoreProductsNotInCurrentStore];
   }
-  console.log("finalList => ", finalList);
+  console.log("finalList => ", finalList.length);
   // Remove duplicates by Code and prioritize PreferenceNumber
   const uniqueProducts = finalList.reduce((acc, product) => {
     const existingProduct = acc.find((p) => p.Code === product.Code);
@@ -260,42 +316,42 @@ async function getProductsByStoreAndParentStore(storeId, parentStoreId) {
   return finalList;
 }
 
-async function getProductsByStore(storeId) {
-  console.log("storeId => ", storeId);
+async function getProductsByStore(storeId, query) {
+  console.log("storeId => ", storeId, query);
   try {
     const result = await ProductQty.aggregate([
       { $match: { StoreId: storeId, $or: [{ NextAvailable: "" }] } },
       {
-      $lookup: {
-        from: "products",
-        localField: "ProductCode",
-        foreignField: "Code",
-        as: "productDetails",
-      },
+        $lookup: {
+          from: "products",
+          localField: "ProductCode",
+          foreignField: "Code",
+          as: "productDetails",
+        },
       },
       { $unwind: "$productDetails" },
       {
-      $project: {
-        _id: "$productDetails._id",
-        StoreId: 1,
-        Code: "$productDetails.Code",
-        Name: "$productDetails.Name",
-        Description: "$productDetails.Description",
-        Age: "$productDetails.Age",
-        AgeType: "$productDetails.AgeType",
-        Brand: "$productDetails.Brand",
-        Category: "$productDetails.Category",
-        bigSize: "$productDetails.bigSize",
-        VideoOnInsta: "$productDetails.VideoOnInsta",
-        SearchKey: "$productDetails.SearchKey",
-        membershipType: "$productDetails.Membership Type",
-        NextAvailable: "$NextAvailable",
-        QtyCode: "$QtyCode",
-        PreferenceNumber: "$PreferenceNumber",
-      },
+        $project: {
+          _id: "$productDetails._id",
+          StoreId: 1,
+          Code: "$productDetails.Code",
+          Name: "$productDetails.Name",
+          Description: "$productDetails.Description",
+          Age: "$productDetails.Age",
+          AgeType: "$productDetails.AgeType",
+          Brand: "$productDetails.Brand",
+          Category: "$productDetails.Category",
+          bigSize: "$productDetails.bigSize",
+          VideoOnInsta: "$productDetails.VideoOnInsta",
+          SearchKey: "$productDetails.SearchKey",
+          membershipType: "$productDetails.Membership Type",
+          NextAvailable: "$NextAvailable",
+          QtyCode: "$QtyCode",
+          PreferenceNumber: "$PreferenceNumber",
+        },
       },
     ]);
-    console.log("result => ", result);
+    console.log("result => ", result.length);
     return result;
   } catch (error) {
     console.error("Error fetching products by store:", error);
