@@ -86,7 +86,7 @@ router.get("/hidden", async (req, res) => {
 
 router.post("/filter", async (req, res) => {
   try {
-    const { age, category, brand, price } = req.body;
+    const { age, category, brand, price, searchKey } = req.body;
     let query = {};
 
     if (age && age.length > 0) {
@@ -97,20 +97,35 @@ router.post("/filter", async (req, res) => {
       query.Category = { $in: category };
     }
 
+    if (searchKey && searchKey.length > 0) {
+      query.SearchKey = { $in: searchKey };
+    }
+
     if (brand && brand.length > 0) {
       query.Brand = { $in: brand };
     }
 
     if (price && price.length > 0) {
       const priceRange = price[0].split("-").map(Number);
-      query.rent30 = { $gte: priceRange[0], $lte: priceRange[1] };
+      if (priceRange.length === 1) {
+        query.rent30 = { $gte: priceRange[0] };
+      } else {
+        query.rent30 = { $gte: priceRange[0], $lte: priceRange[1] };
+      }
     }
-    const productsByStore = await getProductsByStoreAndParentStore(
+    console.log("query => ", query);
+    let productsByStore = await getProductsByStoreAndParentStore(
       req.query.store,
       req.query.parentStore
     );
+
+console.log("productsByStore => ", productsByStore);
     const filteredProducts = productsByStore.filter((product) => {
+      console.log("product => ", product);
       for (let key in query) {
+        if (key === "SearchKey" && product.SearchKey && product.SearchKey.includes(query[key].$in[0])) {
+          return true;
+        }
         if (query[key].$in && !query[key].$in.includes(product[key])) {
           return false;
         }
@@ -134,41 +149,6 @@ router.post("/filter", async (req, res) => {
   }
 });
 
-router.get("/byAge", async (req, res) => {
-  try {
-    console.log("query req => ", req.query);
-    let query = null;
-    const productsByStore = await getProductsByStoreAndParentStore(
-      req.query.store,
-      req.query.parentStore
-    );
-    const toys_list1 = productsByStore.filter((product) => {
-      // if (product.visible) {
-      if (req.query && req.query.ageType === "preschool") {
-        return (
-          product.Age === "0+" || product.Age === "1+" || product.Age === "2+"
-        );
-      } else if (req.query && req.query.ageType === "playschool") {
-        return (
-          product.Age === "3+" || product.Age === "4+" || product.Age === "5+"
-        );
-      } else if (req.query && req.query.ageType === "primaryschool") {
-        return (
-          product.Age === "6+" || product.Age === "7+" || product.Age === "8+"
-        );
-      }
-      // }
-    });
-    console.log("query => ", query);
-    // const toys_list = await productsByStore.find(query);
-    console.log("toys_list => ", toys_list1);
-    res.json(toys_list1);
-  } catch (err) {
-    console.error("Error fetching products by age:", err);
-    res.status(500).send("Internal Server Error");
-  }
-});
-
 router.get("/byCategory/:category", async (req, res) => {
   try {
     const category = req.params.category;
@@ -184,28 +164,6 @@ router.get("/byCategory/:category", async (req, res) => {
   } catch (err) {
     console.error("Error fetching products by category:", err);
     res.status(500).send("Internal Server Error");
-  }
-});
-
-const MEMBERSHIP_TYPES = ["Silver", "Gold", "Platinum"];
-
-router.get("/byMembershipType", async (req, res) => {
-  try {
-    const membershipType = req.query.membershipType;
-    console.log("membershipType => ", membershipType);
-
-    if (!MEMBERSHIP_TYPES.includes(membershipType)) {
-      throw new Error("Invalid membership type : " + membershipType);
-    }
-
-    const productsByStore = await getProductsByStore(req.query.store);
-    const toys_list1 = productsByStore.filter(
-      (product) => product.membershipType === membershipType
-    );
-    res.json(toys_list1);
-  } catch (err) {
-    console.error("Error fetching products by membershipType:", err);
-    res.status(500).send(err.message ?? "Internal Server Error");
   }
 });
 
@@ -348,6 +306,8 @@ async function getProductsByStore(storeId, query) {
           NextAvailable: "$NextAvailable",
           QtyCode: "$QtyCode",
           PreferenceNumber: "$PreferenceNumber",
+          Mrp: "$Mrp",
+          rent30: "$Rent30",
         },
       },
     ]);
