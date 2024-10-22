@@ -6,7 +6,7 @@ const path = require("path");
 const connectToMongoDB = require("./config");
 
 // Define the directory for static content
-const publicDirectoryPath = path.join(__dirname, "uiBuild");
+const publicDirectoryPath = path.join(__dirname, "public");
 
 // Middleware
 app.use(express.json());
